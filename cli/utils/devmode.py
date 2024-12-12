@@ -59,9 +59,12 @@ def enable_devmode(source: str):
                             "Time": original_times,
                         }
 
-                    # Replace Cost and Time values with 1
-                    modified_content = cost_pattern.sub("1", content)
-                    modified_content = time_pattern.sub("1", modified_content)
+                    # Replace Cost and Time values with 1, only if they are not 0
+                    def replace_non_zero(match):
+                        return "1" if match.group() != "0" else match.group()
+
+                    modified_content = cost_pattern.sub(replace_non_zero, content)
+                    modified_content = time_pattern.sub(replace_non_zero, modified_content)
 
                     with open(file_path, "w") as file:
                         file.write(modified_content)
@@ -88,8 +91,8 @@ def enable_devmode(source: str):
                 if original_build_costs or original_build_times:
                     relative_path = os.path.relpath(file_path, start=os.path.dirname(cache_file))
                     cache[relative_path] = {
-                        "buildCost": original_build_costs,
-                        "buildTime": original_build_times,
+                        "shipBuildCost": original_build_costs,
+                        "shipBuildTime": original_build_times,
                     }
 
                 # Replace buildCost and buildTime values with 1
@@ -99,6 +102,40 @@ def enable_devmode(source: str):
                 # Write modified content back to file
                 with open(file_path, "w") as ship_file:
                     ship_file.write(modified_content)
+
+    # Traverse subsystem directories and modify subs files
+    subs_dir = os.path.join(source, "subsystem")
+    print("Modifying subs files...")
+    for root, _, files in os.walk(subs_dir):
+        for file in files:
+            if file.endswith(".subs"):
+                file_path = os.path.join(root, file)
+                print(file_path + "...")
+                with open(file_path, "r") as subs_file:
+                    content = subs_file.read()
+
+                # Regex patterns to find buildCost and buildTime values
+                build_cost_pattern = re.compile(r"(?<=NewSubSystemType\.costToBuild=)\d+")
+                build_time_pattern = re.compile(r"(?<=NewSubSystemType\.timeToBuild=)\d+")
+
+                # Find and cache original values
+                original_build_costs = build_cost_pattern.findall(content)
+                original_build_times = build_time_pattern.findall(content)
+
+                if original_build_costs or original_build_times:
+                    relative_path = os.path.relpath(file_path, start=os.path.dirname(cache_file))
+                    cache[relative_path] = {
+                        "subsBuildCost": original_build_costs,
+                        "subsBuildTime": original_build_times,
+                    }
+
+                # Replace buildCost and buildTime values with 1
+                modified_content = build_cost_pattern.sub("1", content)
+                modified_content = build_time_pattern.sub("1", modified_content)
+
+                # Write modified content back to file
+                with open(file_path, "w") as subs_file:
+                    subs_file.write(modified_content)
 
     with open(cache_file, "w") as file:
         json.dump(cache, file, indent=4)
@@ -117,26 +154,52 @@ def restore_devmode(source: str):
     for relative_path, values in cache.items():
         print("Restoring " + relative_path + "...")
         file_path = os.path.normpath(os.path.join(os.path.dirname(cache_file), relative_path))
+
+        if not os.path.exists(file_path):
+            print(f"File not found: {file_path}. Skipping...")
+            continue
+
         with open(file_path, "r") as file:
             content = file.read()
 
         # Restore research file values
         if "Cost" in values:
             costs = iter(values["Cost"])
-            content = re.sub(r"(?<=\bCost\s=\s)1", lambda _: next(costs, "1"), content)
+            def restore_cost(match):
+                return next(costs, match.group())
+            content = re.sub(r"(?<=\bCost\s=\s)\d+", restore_cost, content)
 
         if "Time" in values:
             times = iter(values["Time"])
-            content = re.sub(r"(?<=\bTime\s=\s)1", lambda _: next(times, "1"), content)
+            def restore_time(match):
+                return next(times, match.group())
+            content = re.sub(r"(?<=\bTime\s=\s)\d+", restore_time, content)
 
         # Restore ship file values
-        if "buildCost" in values:
-            build_costs = iter(values["buildCost"])
-            content = re.sub(r"(?<=NewShipType\.buildCost=)1", lambda _: next(build_costs, "1"), content)
+        if "shipBuildCost" in values:
+            build_costs = iter(values["shipBuildCost"])
+            def restore_build_cost(match):
+                return next(build_costs, match.group())
+            content = re.sub(r"(?<=NewShipType\.buildCost=)\d+", restore_build_cost, content)
 
-        if "buildTime" in values:
-            build_times = iter(values["buildTime"])
-            content = re.sub(r"(?<=NewShipType\.buildTime=)1", lambda _: next(build_times, "1"), content)
+        if "shipBuildTime" in values:
+            build_times = iter(values["shipBuildTime"])
+            def restore_build_time(match):
+                return next(build_times, match.group())
+            content = re.sub(r"(?<=NewShipType\.buildTime=)\d+", restore_build_time, content)
+
+        # Restore subs file values
+        if "subsBuildCost" in values:
+            build_costs = iter(values["subsBuildCost"])
+            def restore_build_cost(match):
+                return next(build_costs, match.group())
+            content = re.sub(r"(?<=NewSubSystemType\.costToBuild=)\d+", restore_build_cost, content)
+
+        if "subsBuildTime" in values:
+            build_times = iter(values["subsBuildTime"])
+            def restore_build_time(match):
+                return next(build_times, match.group())
+            content = re.sub(r"(?<=NewSubSystemType\.timeToBuild=)\d+", restore_build_time, content)
 
         with open(file_path, "w") as file:
             file.write(content)
