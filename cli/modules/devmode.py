@@ -22,10 +22,11 @@ from utils.devmode import restore_devmode, enable_devmode
 @click.argument('source', type=click.Path(exists=True, file_okay=False, writable=True))
 def devmode(source: str):
     """
-    Replaces some script values to 1 or restores them to original from cache if devmode is already enabled.
+    Replaces some script values with lower numbers or restores them to original from cache if devmode is already enabled.
     Script values to be changed:
     - def_research.lua for all races, except evo and random, Cost and Time values.
     - ships files, buildCost and buildTime.
+    - subs files, costToBuild, timeToBuild.
     """
     cache_file = os.path.join(source, ".crm-devmode-cache")
     if os.path.exists(cache_file):

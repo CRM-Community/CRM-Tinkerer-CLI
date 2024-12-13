@@ -59,9 +59,11 @@ def enable_devmode(source: str):
                             "Time": original_times,
                         }
 
-                    # Replace Cost and Time values with 1, only if they are not 0
+                    # Replace Cost and Time values with 2, only if they are not 0 or 1
                     def replace_non_zero(match):
-                        return "1" if match.group() != "0" else match.group()
+                        if int(match.group()) > 1:
+                            return "2"
+                        return match.group()
 
                     modified_content = cost_pattern.sub(replace_non_zero, content)
                     modified_content = time_pattern.sub(replace_non_zero, modified_content)
